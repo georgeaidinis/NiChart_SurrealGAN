@@ -26,6 +26,9 @@ setuptools.setup(
         'scipy>=1.8.0',
         'pandas>=1.4.2',
         'lifelines>=0.26.3'
-    ]
+    ],
+    entry_points={
+        'console_scripts': ['SurrealGAN=SurrealGAN.cli:main']
+        },
 )
 
