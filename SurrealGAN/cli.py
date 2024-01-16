@@ -62,13 +62,14 @@ def main():
     parser.add_argument("-e", 
                         "--epoch",
                         type=int,
-                        help=help, 
-                        required=True)
+                        help=help,
+                        default=50000,
+                        required=False)
     
     # OUTPUT argument
     help = "The path where the output .csv file should be saved. If none given, nothing will be saved."
-    parser.add_argument("-i", 
-                        "--input",
+    parser.add_argument("-o", 
+                        "--output",
                         type=str,
                         help=help,
                         default=None,
@@ -106,15 +107,26 @@ def main():
     transformed_input = transform_data(data)
     if arguments.covariate:
         demographic_data = pd.read_csv(arguments.covariate)
-        transform_covariate(demographic_data, data)
+        covariates = transform_covariate(demographic_data, data)
+    else:
+        covariates = None
 
     # Call the apply_saved_model function with the CLI arguments
     results = apply_saved_model(arguments.model_dir, 
                                 transformed_input, 
                                 arguments.epoch, 
-                                arguments.covariate)
+                                covariates)
 
     # Handling output
+    if arguments.output:
+        surreal_df = pd.DataFrame(results, columns=[f'SurrealGAN_r_index_{i}' for i in range(results.shape[1])])
+        surreal_df['ID'] = data['ID']
+        merged_data = pd.merge(data, surreal_df, on='ID')
+        merged_data.to_csv(arguments.output, index=False)
+        print(f"Results saved to {arguments.output}")
+    else:
+        print(results)
+        print("No output path specified. Results are not saved.")
 
     return
 
@@ -147,18 +159,19 @@ def transform_covariate(demographic_data, raw_input_data):
     # Rename 'ID' column to 'participant_id' and add 'diagnosis'
     demographic_data = demographic_data.rename(columns={'ID': 'participant_id'})
     demographic_data['diagnosis'] = 1  # Assuming all participants have a diagnosis
-
+    
     # Convert 'Sex' from 'F'/'M' to 0/1
-    demographic_data['Sex'] = demographic_data['Sex'].replace({'F': 0, 'M': 1})
-
+    demographic_data['sex'] = demographic_data['Sex'].replace({'F': 0, 'M': 1})
+    
     # Source 'DLICV_baseline' values from ROI 702 in the raw input data
     raw_input_data = raw_input_data.rename(columns={'ID': 'participant_id'})
     roi_702_data = raw_input_data[['participant_id', '702']]
     roi_702_data = roi_702_data.rename(columns={'702': 'DLICV_baseline'})
-
+    
     # Merge demographic data with DLICV_baseline values
     transformed_covariate = pd.merge(demographic_data, roi_702_data, on='participant_id', how='left')
-
+    transformed_covariate = transformed_covariate[['participant_id', 'diagnosis', 'sex', 'DLICV_baseline']]
+    
     return transformed_covariate
 
 if __name__ == "__main__":
